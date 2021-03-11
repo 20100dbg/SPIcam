@@ -6,20 +6,14 @@ import imutils
 import time
 import cv2
 
-# construct the argument parser and parse the arguments
-ap = argparse.ArgumentParser()
-ap.add_argument("-v", "--video", help="path to the video file")
-ap.add_argument("-a", "--min-area", type=int, default=500, help="minimum area size")
-args = vars(ap.parse_args())
+videoFile = ""
+min_area = 500
 
-# if the video argument is None, then we are reading from webcam
-if args.get("video", None) is None:
+if videoFile == "":
 	vs = VideoStream(src=0).start()
 	time.sleep(2.0)
-
-# otherwise, we are reading from a video file
 else:
-	vs = cv2.VideoCapture(args["video"])
+	vs = cv2.VideoCapture(videoFile)
 
 # initialize the first frame in the video stream
 firstFrame = None
@@ -29,7 +23,7 @@ while True:
 	# grab the current frame and initialize the occupied/unoccupied
 	# text
 	frame = vs.read()
-	frame = frame if args.get("video", None) is None else frame[1]
+	frame = frame if videoFile == "" is None else frame[1]
 	text = "Unoccupied"
 
 	# if the frame could not be grabbed, then we have reached the end
@@ -63,7 +57,7 @@ while True:
 	# loop over the contours
 	for c in cnts:
 		# if the contour is too small, ignore it
-		if cv2.contourArea(c) < args["min_area"]:
+		if cv2.contourArea(c) < min_area:
 			continue
 	
 		# compute the bounding box for the contour, draw it on the frame,
@@ -75,11 +69,11 @@ while True:
 		#send mail
 
 	# draw the text and timestamp on the frame
-	#cv2.putText(frame, "Room Status: {}".format(text), (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-	#cv2.putText(frame, datetime.datetime.now().strftime("%A %d %B %Y %I:%M:%S%p"), (10, frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
+	cv2.putText(frame, "Room Status: {}".format(text), (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+	cv2.putText(frame, datetime.datetime.now().strftime("%A %d %B %Y %I:%M:%S%p"), (10, frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
 	
 	# show the frame and record if the user presses a key
-	#cv2.imshow("Security Feed", frame)
+	cv2.imshow("Security Feed", frame)
 	#cv2.imshow("Thresh", thresh)
 	#cv2.imshow("Frame Delta", frameDelta)
 	
@@ -91,6 +85,5 @@ while True:
 
 
 # cleanup the camera and close any open windows
-vs.stop()
-if args.get("video", None) is None else vs.release()
+vs.stop() if args.get("video", None) is None else vs.release()
 cv2.destroyAllWindows()
