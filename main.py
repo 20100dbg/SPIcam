@@ -1,33 +1,29 @@
-run = true
+import socket
+import os
 
+run = True
+i = 0
 # start serveur command
 # start motion.py
 
+os.system("sub1.py")
+
 #mise en écoute
-socket.bind("tcp://*:5555")
+s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+s.bind(('',5555))
+s.listen()
 
 
 while run:
 	
-    #  Wait for next request from command / motion
-    message = socket.recv()
+    con, addr = s.accept()
+    
+    message = socket.recv(1024)
     print(f"Received request: {message}")
 
-    #  Do some 'work'
-    time.sleep(1)
+    sleep(1)
 
+	run = False
+	con.close()
 
-#####client
-# create an INET, STREAMing socket
-s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-# now connect to the web server on port 80 - the normal http port
-s.connect(("www.python.org", 80))
-
-
-##### serveur
-# create an INET, STREAMing socket
-serversocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-# bind the socket to a public host, and a well-known port
-serversocket.bind((socket.gethostname(), 80))
-# become a server socket
-serversocket.listen(5)
+s.close()
