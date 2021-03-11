@@ -1,0 +1,88 @@
+
+motion.py
+
+- détection
+-- prise de photo
+-- send mail avec photo
+-- capture video + audio en local
+
+
+- si pas d'activité > 1 min
+-- arrêt monitoring
+
+
+# transfert de fichier
+
+récepteur
+nc -l -p 31337 > myfile < NUL
+
+émetteur
+cat myfile | nc 10.10.10.10 31337
+
+
+
+#config wifi
+## connect manuel
+sudo wpa_supplicant -c/etc/wpa_supplicant/wpa_supplicant.conf -iwlan0 -B
+
+##connect auto
+/etc/network/interfaces
+auto wlan0
+
+allow-hotplug wlan0
+iface wlan0 inet dhcp
+wpa-conf /etc/wpa_supplicant/wpa_supplicant.conf
+iface default inet dhcp
+
+
+
+#prise de photo
+raspistill -e png -w 1600 -h 1200 -o test.png
+
+#prise de video
+raspivid -t 0 -w 1024 -h 768 -o test.mp4
+
+
+#stream video
+
+## video avec mjpg streamer 
+https://www.sigmdel.ca/michel/ha/rpi/streaming_fr.html
+
+mjpg_streamer -i "/usr/local/lib/mjpg-streamer/input_uvc.so -n -f 10 -r 1280x720" -o "/usr/local/lib/mjpg-streamer/output_http.so -p 8085 -w /usr/local/share/mjpg-streamer/www"
+
+
+http://192.168.1.46:8085/stream.html
+
+
+#audio 
+
+émetteur
+
+cvlc -vvv alsa://hw:1,0 --sout '#standard{access=http,mux=ogg,dst=192.168.1.46:8086}'
+
+http://192.168.1.46:8086
+
+
+///////
+lancer motion.py
+- boucle infinie, des détection lever un signal
+
+
+réception du signal
+- bool detected = true
+- GDH premiere et derniere détection
+- prise de 5 photos a 2 secondes d'intervalles
+- lancer l'enregistrement vidéo
+
+envoi du mail avec les photos
+
+- arreter l'enregistrement
+derniere detection + 2min > GDH courant
+detected = false;
+
+
+
+
+
+
+
