@@ -1,5 +1,7 @@
+backup/
+data/*
+images/*
 token.pickle
 credentials.json
 config.py
 nc.exe
-test.avi
