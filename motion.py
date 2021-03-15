@@ -1,25 +1,39 @@
 from imutils.video import VideoStream
-import argparse
-import datetime
-import imutils
-import time
-import cv2
-import datetime
+import imutils, cv2
+import datetime, time
+import pyaudio, wave
+import config, mail
+import os, glob
 
-import pyaudio
-import wave
-import config
-import mail
+#clean le dossier data
+#lire un fichier pour verifier si on continue la surveillance
 
-
+def getStrTime(dayOnly = False):
+	myfilter = "%Y%m%d"	if dayOnly else "%Y%m%d_%H%M"
+	return datetime.datetime.now().strftime(myfilter) 
 
 def log(mystr):
-	with open("log/spicam.log", "a") as log:
+	with open("log/"+ getStrTime(True) +"_spicam.log", "a") as log:
 		log.write("["+ str(datetime.datetime.now()) +"] " + mystr + "\n")
 
 def callback(in_data, frame_count, time_info, status):
 	frames.append(in_data)
 	return (in_data, pyaudio.paContinue)
+
+#clean dossier data + images
+def clean(fData = True, fImages = True):
+	if fData:
+		files = glob.glob('./data/*')
+		for f in files:
+			os.remove(f)
+	
+	if fImages:
+		files = glob.glob('./images/*')
+		for f in files:
+			os.remove(f)
+
+
+time.sleep(config.CONF['waitStart'])
 
 #init audio
 p = pyaudio.PyAudio()
@@ -29,24 +43,17 @@ stream = p.open(format=pyaudio.paInt16, channels=2, rate=44100, input=True, fram
 
 starttime = datetime.datetime.now()
 gdhLastDetect = ""
-detected = False
-cPicture = 0
-cFrame = 0
-mailsent = False
+mailsent, watching = False, False
+cPicture, cFrame = 0, 0
 
-#args
 videoFile = "" #"test.avi"
-min_area = 2000 #defaut : 500
+min_area = 1000 #defaut : 500
 
 if videoFile == "":
-	#vs = VideoStream(src=0).start()
-	#time.sleep(2.0)
-	
 	vs = cv2.VideoCapture(0)
 	time.sleep(2.0)
 	#vs.set(3,640)
 	#vs.set(4,480)
-
 else:
 	vs = cv2.VideoCapture(videoFile)
 
@@ -76,7 +83,6 @@ while True:
 		firstFrame = gray
 		continue
 
-
 	# compute the absolute difference between the current frame and first frame
 	frameDelta = cv2.absdiff(firstFrame, gray)
 	thresh = cv2.threshold(frameDelta, 25, 255, cv2.THRESH_BINARY)[1]
@@ -85,7 +91,6 @@ while True:
 	thresh = cv2.dilate(thresh, None, iterations=2)
 	cnts = cv2.findContours(thresh.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 	cnts = imutils.grab_contours(cnts)
-	
 	
 	# loop over the contours
 	for c in cnts:
@@ -99,15 +104,15 @@ while True:
 
 	if text == "Occupied":
 
-		if not detected:
-			#init video writer
-			writer = cv2.VideoWriter('data/output.avi',cv2.VideoWriter_fourcc(*'MJPG'), 20.0, (640,480))
-			stream.start_stream()
-			detected = True
-			log("Init videowriter + audio")
-		
 		gdhLastDetect = datetime.datetime.now()
 		cFrame += 1
+
+		if not watching:
+			#init video writer
+			writer = cv2.VideoWriter('data/'+ getStrTime() +'_video.avi',cv2.VideoWriter_fourcc(*'MJPG'), 20.0, (640,480))
+			stream.start_stream()
+			watching = True
+			log("Init videowriter + audio")
 
 		if not mailsent:
 			
@@ -120,15 +125,16 @@ while True:
 				mail.sendmail(True)
 				mailsent = True
 				log("Envoi mail debut intrusion")
+				clean(False, True)
 	
-	elif detected:
+	elif watching:
 		delta = gdhLastDetect + datetime.timedelta(seconds=config.CONF['detect_timeout'])
 		
 		if datetime.datetime.now() > delta:
 			mail.sendmail(False)
 			log("Envoi mail fin intrusion")
 			
-			detected = False
+			watching = False
 			mailsent = False
 			cFrame = 0
 			writer.release()
@@ -136,30 +142,30 @@ while True:
 			log("Fermeture video writer et stream audio")
 
 
-	if text == "Occupied" or detected:
+	if text == "Occupied" or watching:
 		if writer: 
 			cv2.putText(origFrame, datetime.datetime.now().strftime("%A %d %B %Y %I:%M:%S%p"), (10, origFrame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
 			writer.write(origFrame)
 
 
 	# draw the text and timestamp on the frame
-	cv2.putText(frame, "Room Status: {}".format(text), (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-	cv2.putText(frame, datetime.datetime.now().strftime("%A %d %B %Y %I:%M:%S%p"), (10, frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
+	#cv2.putText(frame, "Room Status: {}".format(text), (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+	#cv2.putText(frame, datetime.datetime.now().strftime("%A %d %B %Y %I:%M:%S%p"), (10, frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
 	
 	# show the frame and record if the user presses a key
-	cv2.imshow("Security Feed", frame)
+	#cv2.imshow("Security Feed", frame)
 	#cv2.imshow("Thresh", thresh)
 	#cv2.imshow("Frame Delta", frameDelta)
-
-	key = cv2.waitKey(1) & 0xFF
-	# if the `q` key is pressed, break from the lop
-
-	if key == ord("q"):
-		break
 	
-	if datetime.datetime.now() > starttime + datetime.timedelta(seconds=60):
-		log("Fin du timer")
-		break
+	#if datetime.datetime.now() > starttime + datetime.timedelta(seconds=60):
+	#	log("Fin du timer")
+	#	break
+
+	with open("work", "r") as f:
+		if f.read() != "1":
+			break
+
+
 
 # cleanup the camera and close any open windows
 #vs.stop() if videoFile == "" else vs.release()
@@ -168,14 +174,13 @@ cv2.destroyAllWindows()
 
 stream.close()
 p.terminate()
-log("Ressources fermées")
+log("Ressources fermees")
 
-waveFile = wave.open("data/audio.wav", 'wb')
+waveFile = wave.open("data/"+ getStrTime() +"_audio.wav", 'wb')
 waveFile.setnchannels(2)
 waveFile.setsampwidth(p.get_sample_size(pyaudio.paInt16))
 waveFile.setframerate(44100)
 waveFile.writeframes(b''.join(frames))
 waveFile.close()
 
-log("Fichier son enregistré")
-
+log("Fichier son enregistre")
