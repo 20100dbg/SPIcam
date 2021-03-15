@@ -5,8 +5,16 @@ import pyaudio, wave
 import config, mail
 import os, glob
 
-#clean le dossier data
-#lire un fichier pour verifier si on continue la surveillance
+
+def saveWave(frams):
+	waveFile = wave.open("data/"+ getStrTime() +"_audio.wav", 'wb')
+	waveFile.setnchannels(2)
+	waveFile.setsampwidth(p.get_sample_size(pyaudio.paInt16))
+	waveFile.setframerate(44100)
+	waveFile.writeframes(b''.join(frames))
+	waveFile.close()
+
+log("Fichier son enregistre")
 
 def getStrTime(dayOnly = False):
 	myfilter = "%Y%m%d"	if dayOnly else "%Y%m%d_%H%M"
@@ -14,7 +22,7 @@ def getStrTime(dayOnly = False):
 
 def log(mystr):
 	with open("log/"+ getStrTime(True) +"_spicam.log", "a") as log:
-		log.write("["+ str(datetime.datetime.now()) +"] " + mystr + "\n")
+		log.write("["+ datetime.datetime.now().strftime("%Y%m%d_%H%M%S") +"] " + mystr + "\n")
 
 def callback(in_data, frame_count, time_info, status):
 	frames.append(in_data)
@@ -33,13 +41,14 @@ def clean(fData = True, fImages = True):
 			os.remove(f)
 
 
+log("Script started")
 time.sleep(config.CONF['waitStart'])
 
 #init audio
 p = pyaudio.PyAudio()
 frames = []
 stream = p.open(format=pyaudio.paInt16, channels=2, rate=44100, input=True, frames_per_buffer=1024, stream_callback=callback)
-
+log("Audio initialized")
 
 starttime = datetime.datetime.now()
 gdhLastDetect = ""
@@ -134,11 +143,12 @@ while True:
 			mail.sendmail(False)
 			log("Envoi mail fin intrusion")
 			
-			watching = False
-			mailsent = False
-			cFrame = 0
+			watching, mailsent = False, False
+			cFrame, cPicture = 0,0
 			writer.release()
 			stream.stop_stream()
+			saveWave(frames)
+			frames = []
 			log("Fermeture video writer et stream audio")
 
 
@@ -176,11 +186,3 @@ stream.close()
 p.terminate()
 log("Ressources fermees")
 
-waveFile = wave.open("data/"+ getStrTime() +"_audio.wav", 'wb')
-waveFile.setnchannels(2)
-waveFile.setsampwidth(p.get_sample_size(pyaudio.paInt16))
-waveFile.setframerate(44100)
-waveFile.writeframes(b''.join(frames))
-waveFile.close()
-
-log("Fichier son enregistre")
