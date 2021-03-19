@@ -19,10 +19,8 @@ def sendmail(startDetect = True):
 	msg['Subject'] = "Alerte intrusion" if startDetect else "Fin alerte intrusion"
 	
 	if startDetect:
-		html = f"""<p>
-			Alerte intrusion {gdh}<br>
-			<img src="cid:image-1"><br><img src="cid:image-2"><br><img src="cid:image-3"><br>
-			<img src="cid:image-4"><br><img src="cid:image-5"><br></p>"""
+		html = f"""<p>Alerte intrusion {gdh}<br>"""
+
 
 		for filename in os.listdir(dirImg):
 			pathPJ = os.path.join(dirImg, filename)
@@ -30,19 +28,23 @@ def sendmail(startDetect = True):
 			with open(pathPJ, 'rb') as fp:
 				#msg.add_attachment(fp.read(), maintype='application', subtype='octet-stream', filename=filename)
 				f, e = os.path.splitext(filename)
+				html += f"""<img src="cid:{f}"><br>"""
 				msgImg = MIMEImage(fp.read(), e)
 				msgImg.add_header('Content-ID', '<'+ f +'>')
 				msgImg.add_header('Content-Disposition', 'inline', filename=filename)
 				msg.attach(msgImg)
 
+		html += f"""</p>"""
 	else:
-		html = f"""<p>Fin alerte intrusion {gdh}<br>"""
+		html = f"""<p>Fin alerte intrusion {gdh}<br></p>"""
 
 	msg.attach(MIMEText(html, 'html'))
 
 	# Send the message via our own SMTP server.
 	s = smtplib.SMTP('localhost',25)
-	s.login(config.CONF['smtp_login'], config.CONF['smtp_password'])
+
+	if config.CONF['use_smtp_login']:
+		s.login(config.CONF['smtp_login'], config.CONF['smtp_password'])
 
 	s.sendmail(msg['From'], msg['To'], msg.as_string())
 	#s.send_message(msg)

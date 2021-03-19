@@ -6,7 +6,18 @@ import config, mail
 import os, glob
 
 
-def saveWave(frams):
+def check_internet():
+	try:
+		#host = socket.gethostbyname("one.one.one.one")
+		s = socket.create_connection(("1.1.1.1", 80), 2)
+		s.close()
+		return True
+	except:
+		pass
+	return False
+
+
+def saveWave(frames):
 	waveFile = wave.open("data/"+ getStrTime() +"_audio.wav", 'wb')
 	waveFile.setnchannels(2)
 	waveFile.setsampwidth(p.get_sample_size(pyaudio.paInt16))
@@ -14,15 +25,19 @@ def saveWave(frams):
 	waveFile.writeframes(b''.join(frames))
 	waveFile.close()
 
-log("Fichier son enregistre")
-
 def getStrTime(dayOnly = False):
 	myfilter = "%Y%m%d"	if dayOnly else "%Y%m%d_%H%M"
 	return datetime.datetime.now().strftime(myfilter) 
 
-def log(mystr):
+def log(mystr, writeConsole = True):	
+	mystr = "["+ datetime.datetime.now().strftime("%Y%m%d_%H%M%S") +"] " + mystr
+	
+	if writeConsole:
+		print(mystr)
+
 	with open("log/"+ getStrTime(True) +"_spicam.log", "a") as log:
-		log.write("["+ datetime.datetime.now().strftime("%Y%m%d_%H%M%S") +"] " + mystr + "\n")
+		log.write(mystr + "\n")
+
 
 def callback(in_data, frame_count, time_info, status):
 	frames.append(in_data)
@@ -42,7 +57,14 @@ def clean(fData = True, fImages = True):
 
 
 log("Script started")
-time.sleep(config.CONF['waitStart'])
+
+with open("work", "r") as f:
+	if f.read() != "1":
+		log("!!! work file != 1")
+
+log("internet access ok") if check_internet() else log("internet access failed")
+
+time.sleep(config.CONF['wait_start'])
 
 #init audio
 p = pyaudio.PyAudio()
@@ -51,7 +73,7 @@ stream = p.open(format=pyaudio.paInt16, channels=2, rate=44100, input=True, fram
 log("Audio initialized")
 
 starttime = datetime.datetime.now()
-gdhLastDetect = ""
+gdhLastDetect, gdhBeginWatching, gdhLastPicture = "", "", ""
 mailsent, watching = False, False
 cPicture, cFrame = 0, 0
 
@@ -73,6 +95,8 @@ firstFrame = None
 # loop over the frames of the video
 while True:
 	# grab the current frame and initialize the occupied/unoccupied text
+	time.sleep(0.1)
+
 	ret, frame = vs.read()
 	frame = frame if videoFile == "" else frame[1]
 	text = "Unoccupied"
@@ -118,17 +142,28 @@ while True:
 
 		if not watching:
 			#init video writer
+			watching = True
 			writer = cv2.VideoWriter('data/'+ getStrTime() +'_video.avi',cv2.VideoWriter_fourcc(*'MJPG'), 20.0, (640,480))
 			stream.start_stream()
-			watching = True
+
+			gdhBeginWatching = datetime.datetime.now()
+			gdhLastPicture = datetime.datetime.now()
 			log("Init videowriter + audio")
+
 
 		if not mailsent:
 			
-			if cFrame % 50 == 0 and cPicture <= config.CONF['nb_picture']:
-				cPicture += 1
-				cv2.imwrite('images/image-'+ str(cPicture) +'.jpg', frame)
-				log("Save picture " + str(cPicture))
+			delta = gdhBeginWatching + datetime.timedelta(seconds=config.CONF['delay_first_picture'])
+			if datetime.datetime.now() > delta:
+
+				delta = gdhLastPicture + datetime.timedelta(seconds=config.CONF['delay_between_picture'])
+				if datetime.datetime.now() > delta:
+
+					if cPicture <= config.CONF['nb_picture']:
+						cPicture += 1
+						cv2.imwrite('images/image-'+ str(cPicture) +'.jpg', frame)
+						log("Save picture " + str(cPicture))
+						gdhLastPicture = datetime.datetime.now()
 
 			if cPicture == config.CONF['nb_picture']:
 				mail.sendmail(True)
@@ -148,6 +183,7 @@ while True:
 			writer.release()
 			stream.stop_stream()
 			saveWave(frames)
+			log("Fichier son enregistre")
 			frames = []
 			log("Fermeture video writer et stream audio")
 
@@ -159,11 +195,11 @@ while True:
 
 
 	# draw the text and timestamp on the frame
-	#cv2.putText(frame, "Room Status: {}".format(text), (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
-	#cv2.putText(frame, datetime.datetime.now().strftime("%A %d %B %Y %I:%M:%S%p"), (10, frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
+	cv2.putText(frame, "Room Status: {}".format(text), (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+	cv2.putText(frame, datetime.datetime.now().strftime("%A %d %B %Y %I:%M:%S%p"), (10, frame.shape[0] - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.35, (0, 0, 255), 1)
 	
 	# show the frame and record if the user presses a key
-	#cv2.imshow("Security Feed", frame)
+	#cv2.imshow("Security Feed", origFrame)
 	#cv2.imshow("Thresh", thresh)
 	#cv2.imshow("Frame Delta", frameDelta)
 	

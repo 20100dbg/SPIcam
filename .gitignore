@@ -2,6 +2,7 @@ __pycache__
 backup/
 data/*
 images/*
+log/*
 token.pickle
 credentials.json
 config.py
